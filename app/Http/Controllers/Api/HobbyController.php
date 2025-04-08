@@ -53,7 +53,19 @@ class HobbyController extends Controller
      */
     public function show(string $id)
     {
-        //
+        $hobby = Hobby::where('id', $id)->get();
+        if (!$hobby) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'not found',
+                ], 404);
+        }
+        
+        return response()->json([
+            'status' => 200,
+            'message' => 'success',
+            'data' => $hobby,
+        ],200);
     }
 
     /**
@@ -61,14 +73,50 @@ class HobbyController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //
-    }
 
+        $request->validate([
+            'name' => 'required|min:3',
+        ]);
+
+        $hobby = Hobby::find( $id);
+        if (!$hobby) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'not found',
+            ], 404);
+        }
+
+        $hobby->update([
+            'name' => $request->name,
+        ]);
+
+        return response()->json([
+            'status' => 200,
+            'message' => 'success',
+            'data' => $hobby,
+            ],200);
+    }
     /**
      * Remove the specified resource from storage.
      */
     public function destroy(string $id)
     {
-        //
+        $hobby = Hobby::find($id);
+
+        if (!$hobby) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'not found',
+            ], 404);
+        }
+
+        $hobby->delete();
+
+        return response()->json([
+            'status' => 200,
+            'message' => 'success',
+        ],200);
+
+
     }
 }
