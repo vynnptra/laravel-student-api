@@ -78,7 +78,13 @@ class SiswaController extends Controller
      */
     public function show(string $id)
     {
-        
+        $siswa = Siswa::with(['nisn', 'phoneNumbers', 'hobbies'])->find($id);
+
+        return response()->json([
+            'status' => 200,
+            'message' => 'success',
+            'data' => $siswa,
+        ],200);
     }
 
     /**
@@ -86,14 +92,74 @@ class SiswaController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //
+        $request->validate([
+            'name' => 'required|min:3',
+            'nisn' => 'required|min:10',
+            'phone_number' => 'required|array|min:1',
+            'phone_number.*' => 'distinct|unique:phone_numbers,phone_number',
+            'hobbies' => 'required|array|min:1',
+        ]);
+
+        $siswa = Siswa::find($id);
+        if (!$siswa) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Siswa not found',
+            ], 404);
+        }
+
+        $siswa->update([
+            'name' => $request->name,
+        ]);
+
+        // Update nisn
+        Nisn::where('siswa_id', '=', $id)->update([
+            'nisn' => $request->nisn
+        ]);
+
+        // Update phone numbers
+        PhoneNumber::where('siswa_id', '=', $id)->delete();
+        foreach ($request->phone_number as $phone) {
+            PhoneNumber::create([
+                'siswa_id' => $id,
+                'phone_number' => $phone,
+            ]);
+        }
+
+        // Update hobbies (pivot table)
+        SiswaHobby::where('siswa_id', '=', $id)->delete();
+        foreach ($request->hobbies as $hobby) {
+            SiswaHobby::create([
+                'siswa_id' => $id,
+                'hobby_id' => $hobby,
+            ]);
+        }
+
+        return response()->json([
+            'status' => 200,
+            'message' => 'success',
+            'data' => Siswa::with(['nisn', 'phoneNumbers', 'hobbies'])->find($id),
+        ]);
     }
+
 
     /**
      * Remove the specified resource from storage.
      */
     public function destroy(string $id)
     {
-        //
+        $siswa = Siswa::find($id)->delete();
+        if (!$siswa) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Siswa not found',
+            ], 404);
+        }
+
+        return response()->json([
+            'status' => 200,
+            'message' => 'Siswa deleted successfully',
+        ]);
+            
     }
 }
