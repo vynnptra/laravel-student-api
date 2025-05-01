@@ -9,6 +9,7 @@ use App\Models\PhoneNumber;
 use App\Models\Siswa;
 use App\Models\SiswaHobby;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class SiswaController extends Controller
 {
@@ -17,13 +18,20 @@ class SiswaController extends Controller
      */
     public function index()
     { 
-
-        $data = Siswa::with(['nisn', 'phoneNumbers', 'hobbies'])->get();
-        return response()->json([
-            'status' => 200,
-            'message' => 'success',
-            'data' => $data,
-        ], 200);
+        try {
+                    $data = Siswa::with(['nisn', 'phoneNumbers', 'hobbies'])->get();
+                    return response()->json([
+                        'status' => 200,
+                        'message' => 'success',
+                        'data' => $data,
+                    ], 200);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'status' => 500,
+                'message' => 'error',
+                'data' => $th->getMessage(),
+            ], 500);
+        }
     }
 
     /**
@@ -38,38 +46,45 @@ class SiswaController extends Controller
             'phone_number.*' => 'distinct|unique:phone_numbers,phone_number', 
             'hobbies' => 'required|array|min:1',
         ]);
-
-        $siswa = Siswa::create([
-            'name' => $request->name,
-        ]);
-
-        Nisn::create([
-            'siswa_id' => $siswa->id,
-            'nisn' => $request->nisn,
-        ]);
-
-        foreach ($request->phone_number as $phone) {
-            PhoneNumber::create([
-                'siswa_id' => $siswa->id,
-                'phone_number' => $phone,
+        try {
+            $siswa = Siswa::create([
+                'name' => $request->name,
             ]);
-        };
-        
-
-        foreach ($request->hobbies as $hobby) {
-            SiswaHobby::create([
+    
+            Nisn::create([
                 'siswa_id' => $siswa->id,
-                'hobby_id' => $hobby,
+                'nisn' => $request->nisn,
             ]);
+    
+            foreach ($request->phone_number as $phone) {
+                PhoneNumber::create([
+                    'siswa_id' => $siswa->id,
+                    'phone_number' => $phone,
+                ]);
+            };
+            
+    
+            foreach ($request->hobbies as $hobby) {
+                SiswaHobby::create([
+                    'siswa_id' => $siswa->id,
+                    'hobby_id' => $hobby,
+                ]);
+            }
+    
+            $data = Siswa::with(['nisn', 'phoneNumbers', 'hobbies'])->find($siswa->id);
+    
+            return response()->json([
+                'status' => 201,
+                'message' => 'success',
+                'data' => $data,
+            ], 201);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'status' => 500,
+                'message' => 'error',
+                'data' => $th->getMessage(),
+                ], 500);
         }
-
-        $data = Siswa::with(['nisn', 'phoneNumbers', 'hobbies'])->find($siswa->id);
-
-        return response()->json([
-            'status' => 201,
-            'message' => 'success',
-            'data' => $data,
-        ], 201);
 
     }
 
@@ -96,50 +111,62 @@ class SiswaController extends Controller
             'name' => 'required|min:3',
             'nisn' => 'required|min:10',
             'phone_number' => 'required|array|min:1',
-            'phone_number.*' => 'distinct|unique:phone_numbers,phone_number',
+            'phone_number.*' => [
+            'distinct',
+                Rule::unique('phone_numbers', 'phone_number')->ignore($id, 'siswa_id'),
+                ],
+
             'hobbies' => 'required|array|min:1',
         ]);
 
-        $siswa = Siswa::find($id);
-        if (!$siswa) {
+        try {
+            $siswa = Siswa::find($id);
+            if (!$siswa) {
+                return response()->json([
+                    'status' => 404,
+                    'message' => 'Siswa not found',
+                ], 404);
+            }
+    
+            $siswa->update([
+                'name' => $request->name,
+            ]);
+    
+            // Update nisn
+            Nisn::where('siswa_id', '=', $id)->update([
+                'nisn' => $request->nisn
+            ]);
+    
+            // Update phone numbers
+            PhoneNumber::where('siswa_id', '=', $id)->delete();
+            foreach ($request->phone_number as $phone) {
+                PhoneNumber::create([
+                    'siswa_id' => $id,
+                    'phone_number' => $phone,
+                ]);
+            }
+    
+            // Update hobbies (pivot table)
+            SiswaHobby::where('siswa_id', '=', $id)->delete();
+            foreach ($request->hobbies as $hobby) {
+                SiswaHobby::create([
+                    'siswa_id' => $id,
+                    'hobby_id' => $hobby,
+                ]);
+            }
+    
             return response()->json([
-                'status' => 404,
-                'message' => 'Siswa not found',
-            ], 404);
-        }
-
-        $siswa->update([
-            'name' => $request->name,
-        ]);
-
-        // Update nisn
-        Nisn::where('siswa_id', '=', $id)->update([
-            'nisn' => $request->nisn
-        ]);
-
-        // Update phone numbers
-        PhoneNumber::where('siswa_id', '=', $id)->delete();
-        foreach ($request->phone_number as $phone) {
-            PhoneNumber::create([
-                'siswa_id' => $id,
-                'phone_number' => $phone,
+                'status' => 200,
+                'message' => 'success',
+                'data' => Siswa::with(['nisn', 'phoneNumbers', 'hobbies'])->find($id),
             ]);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'status' => 500,
+                'message' => 'Internal Server Error',
+                'error' => $th->getMessage(),
+            ], 500);
         }
-
-        // Update hobbies (pivot table)
-        SiswaHobby::where('siswa_id', '=', $id)->delete();
-        foreach ($request->hobbies as $hobby) {
-            SiswaHobby::create([
-                'siswa_id' => $id,
-                'hobby_id' => $hobby,
-            ]);
-        }
-
-        return response()->json([
-            'status' => 200,
-            'message' => 'success',
-            'data' => Siswa::with(['nisn', 'phoneNumbers', 'hobbies'])->find($id),
-        ]);
     }
 
 

@@ -6,6 +6,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Auth\Notifications\ResetPassword;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -46,4 +47,11 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    public function sendPasswordResetNotification($token)
+{
+    $url = url('/reset-password?token=' . $token . '&email=' . urlencode($this->email));
+
+    $this->notify(new ResetPassword($token));
+}
 }
